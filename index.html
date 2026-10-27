@@ -29,10 +29,12 @@
   --paper: #0d0d0d; --ink: #e9e9e9; --muted: #7a7a7a; --rule: #333; --button: #1b1b1b;
   --pencil: #f2b233; --pencil-edge: transparent; color-scheme: dark;
 }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   background: var(--paper); color: var(--ink);
   font-family: var(--serif); font-size: 18px; line-height: 1.35;
+  margin: 0;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 24px;
@@ -54,27 +56,33 @@ button.act {
   border: 1px solid var(--ink); padding: 4px 10px; cursor: pointer;
 }
 button.act:disabled { color: var(--muted); border-color: var(--rule); cursor: default; }
-button.act:focus-visible { outline: 2px solid var(--pencil); outline-offset: 2px; }
+button:focus-visible { outline: 2px solid var(--pencil); outline-offset: 2px; }
 button.act .cd { position: absolute; left: 0; top: 0; bottom: 0; background: var(--rule); opacity: .6; width: 0; pointer-events: none; }
 button.act .lbl { position: relative; }
 button.act .cost { position: relative; display: block; font-size: 14px; color: var(--muted); }
 .stores { border: 1px solid var(--ink); padding: 10px 12px; display: grid; gap: 2px; }
-.stores[hidden] { display: none !important; }
 .row { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
-.row[hidden] { display: none !important; }
-.staff { display: flex; align-items: center; justify-content: space-between; gap: 8px; max-width: 220px; font-variant-numeric: tabular-nums; }
+.row.town { border-top: 1px solid var(--rule); margin-top: 6px; padding-top: 6px; }
+.staff { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 4px 8px; max-width: 220px; font-variant-numeric: tabular-nums; }
+.staff .note { grid-column: 1 / -1; font-size: 14px; color: var(--muted); margin-top: -4px; }
+.staff .btns { display: flex; gap: 4px; }
 .staff button { font: inherit; font-size: 15px; background: var(--button); color: var(--ink); border: 1px solid var(--ink); width: 28px; cursor: pointer; }
 .staff button:disabled { color: var(--muted); border-color: var(--rule); cursor: default; }
+.deal { max-width: 220px; display: grid; gap: 6px; }
+.deal .client { font-weight: 600; }
+.deal .terms { font-size: 15px; color: var(--muted); }
+.bar { height: 6px; border: 1px solid var(--ink); }
+.bar > div { height: 100%; background: var(--ink); width: 0; transition: width .2s linear; }
 #achv { font-size: 15px; color: var(--muted); display: grid; gap: 2px; margin-top: 18px; }
 footer { max-width: 960px; margin: 32px auto 0; display: flex; gap: 12px; align-items: center; color: var(--muted); font-size: 14px; flex-wrap: wrap; }
 footer button { font: inherit; font-size: 14px; background: none; border: none; color: var(--muted); text-decoration: underline; cursor: pointer; padding: 0; }
-.endcard { border-top: 1px solid var(--rule); padding-top: 10px; font-style: italic; }
+.endcard { border-top: 1px solid var(--rule); padding-top: 10px; font-style: italic; max-width: 220px; margin: 0; }
 @media (max-width: 720px) {
   main { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   #actions { order: 1; } #side { order: 2; } #logcol { order: 3; }
   #log { max-height: 40vh; }
 }
-@media (prefers-reduced-motion: reduce) { #log li { animation: none; } }
+@media (prefers-reduced-motion: reduce) { #log li { animation: none; } .bar > div { transition: none; } }
 </style>
 </head>
 <body>
@@ -91,12 +99,23 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
     <div class="group" id="g-counter">
       <button class="act" id="b-snap"><span class="cd"></span><span class="lbl">snap a <span class="pencil">pencil</span></span></button>
       <button class="act" id="b-ring" hidden><span class="cd"></span><span class="lbl">ring up customer</span></button>
+      <p class="endcard" id="endcard" hidden></p>
+    </div>
+    <div class="group" id="g-deals" hidden>
+      <h2>deals</h2>
+      <div class="deal">
+        <div class="client" id="v-client"></div>
+        <div class="terms" id="v-terms"></div>
+        <div class="bar" id="v-dealbar-wrap"><div id="v-dealbar"></div></div>
+        <div class="terms" id="v-dealstate"></div>
+        <button class="act" id="b-pursue"><span class="lbl">pursue deal</span></button>
+      </div>
     </div>
     <div class="group" id="g-build" hidden>
       <h2>build</h2>
     </div>
     <div class="group" id="g-hire" hidden>
-      <h2>hire help</h2>
+      <h2 id="v-hirehead">hire help</h2>
     </div>
   </section>
 
@@ -105,14 +124,16 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
       <div class="row" id="r-pencils"><span><span class="pencil">pencils</span></span><span id="v-pencils">0</span></div>
       <div class="row" id="r-snapped" hidden><span>snapped</span><span id="v-snapped">0</span></div>
       <div class="row" id="r-coins" hidden><span>coins</span><span id="v-coins">0</span></div>
+      <div class="row" id="r-shavings" hidden><span>shavings</span><span id="v-shavings">0</span></div>
       <div class="row" id="r-queue" hidden><span>waiting</span><span id="v-queue">0</span></div>
+      <div class="row town" id="r-town" hidden><span><span class="pencil">pencils</span> left in town</span><span id="v-town">0</span></div>
     </div>
     <div id="achv"></div>
   </section>
 </main>
 
 <footer>
-  <span>act 1 of 3 · saves in this browser</span>
+  <span id="v-act">act 1 of 3</span><span>· saves in this browser</span>
   <button id="b-reset">start over</button>
   <button id="b-reset-yes" hidden>yes, erase my shop</button>
 </footer>
@@ -123,32 +144,84 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
   const DAY_MS = 45000;
   const CD = { snap: 1200, ring: 3500 };
   const RESTOCK_MS = 5000;
+  const TOWN_PENCILS = 9000;
+  // The last pencils in town are out there somewhere; the counter waits for act 3.
+  const townFloor = () => S.flags.act3 ? 0 : 1500;
 
   const BUILDS = [
-    { id: 'bench', name: 'snapping bench', cost: 12, note: 'two at a time' },
-    { id: 'sign', name: 'a sign', cost: 20, note: 'more customers' },
-    { id: 'register', name: 'cash register', cost: 35, note: '+1 coin a sale' },
+    { id: 'bench', name: 'snapping bench', cost: () => 12, note: 'two at a time', show: () => S.flags.buildOpen },
+    { id: 'sign', name: 'a sign', cost: () => 20, note: 'more customers', show: () => S.flags.buildOpen },
+    { id: 'register', name: 'cash register', cost: () => 35, note: '+1 coin a sale', show: () => S.flags.buildOpen },
+    { id: 'snapomatic', name: 'Snap-o-Matic', max: 4, cost: n => Math.round(60 * Math.pow(1.7, n)), note: 'two machinists each', show: () => S.flags.act2 },
+    { id: 'silo', name: 'pencil silo', cost: () => 100, note: 'crates come twice as big', show: () => S.flags.act2 },
+    { id: 'storefront', name: 'bigger storefront', cost: () => 120, note: 'more customers, longer line', show: () => S.flags.act2 },
+    { id: 'backroom', name: 'back room', cost: () => 150, note: 'room for 8 more staff', show: () => S.flags.act2 },
+    { id: 'snapomatic2', name: 'Snap-o-Matic II', cost: () => 300, note: 'machines run twice as fast', show: () => count('snapomatic') > 0 },
+    { id: 'trapdoor', name: 'pry up the floorboards', res: 'shavings', cost: () => 60, note: 'something is under there', show: () => S.flags.trapdoorReady },
+  ];
+
+  // period = ms per action for one worker.
+  const ROLES = [
+    { id: 'snapper', name: 'snapper', base: 20, step: 5, period: 4000, note: 'snaps by hand', show: () => S.flags.hireOpen },
+    { id: 'cashier', name: 'cashier', base: 30, step: 5, period: 3000, note: 'rings up customers', show: () => S.flags.act2 },
+    { id: 'machinist', name: 'machinist', base: 40, step: 10, period: 1000, note: 'runs a Snap-o-Matic', show: () => count('snapomatic') > 0 },
+    { id: 'dealmaker', name: 'dealmaker', base: 60, step: 20, period: 1000, note: 'works the deals', show: () => S.flags.dealsOpen },
+  ];
+
+  const CONTRACTS = [
+    { client: 'Elm Street Elementary', size: 300, reward: 150, talk: 30000,
+      pitch: 'the whole school\'s supply. every desk, every cup.',
+      landed: 'the principal signs. the school bus drops off 300 pencils. the children wave from the windows.',
+      done: 'the principal shakes your hand. her grip is very cold.' },
+    { client: 'Hargrove & Lyle Accounting', size: 600, reward: 300, talk: 50000,
+      pitch: 'forty accountants. a pencil behind every ear.',
+      landed: 'boxes arrive from Hargrove & Lyle. 600 pencils, all sharpened to the same length.',
+      done: 'Mr. Lyle pays in cash. he counts it twice, then once more.' },
+    { client: 'Pinecrest Golf Club', size: 1000, reward: 500, talk: 70000,
+      pitch: 'the little scorecard pencils. thousands of them.',
+      landed: '1000 tiny pencils. snapping them feels unkind.',
+      done: 'the club manager says they\'ll be ordering more. from somewhere.' },
+    { client: 'Ridley School of Art', size: 1600, reward: 800, talk: 90000,
+      pitch: 'colored pencils. every color there is.',
+      landed: '1600 colored pencils. the snapped ends look like confetti.',
+      done: 'the students stand outside and watch. nobody draws anything.' },
+    { client: 'Town Hall archives', size: 2500, reward: 1200, talk: 110000,
+      pitch: 'every pencil the town has ever kept.',
+      landed: 'the clerk wheels in 2500 pencils, some older than the town.',
+      done: 'the clerk hands you a letter from Big Pencil Maker Inc. it says thank you. it doesn\'t say for what.' },
   ];
 
   const fresh = () => ({
-    pencils: 12, snapped: 0, coins: 0, queue: 0, totalSnapped: 0, sales: 0,
-    day: 1, dayT: 0, custT: 0, staffT: 0, restockT: 0, restocks: 0,
-    flags: {}, built: {}, snappers: 0, achv: {}, log: [],
+    pencils: 12, snapped: 0, coins: 0, queue: 0, shavings: 0, totalSnapped: 0, sales: 0, town: null,
+    day: 1, dayT: 0, custT: 0, restockT: 0, restocks: 0, shaveT: 0,
+    flags: {}, built: {}, staff: {}, work: {}, achv: {}, log: [],
+    deal: { i: 0, phase: 'open', prog: 0, start: 0 },
   });
 
   let S = load() || fresh();
   const cooldownUntil = { snap: 0, ring: 0 };
   const $ = id => document.getElementById(id);
+  const count = id => Number(S.built[id] || 0);
+  const staff = id => S.staff[id] || 0;
+  const staffTotal = () => ROLES.reduce((n, r) => n + staff(r.id), 0);
+  const staffCap = () => 5 + count('backroom') * 8;
+  const pick = a => a[Math.floor(Math.random() * a.length)];
 
   function load() {
-    try { const raw = localStorage.getItem(SAVE_KEY); return raw ? Object.assign(fresh(), JSON.parse(raw)) : null; }
-    catch (e) { return null; }
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return null;
+      const s = Object.assign(fresh(), JSON.parse(raw));
+      // Act 1 saves kept snappers as a single number.
+      if (s.snappers) { s.staff.snapper = s.snappers; delete s.snappers; }
+      return s;
+    } catch (e) { return null; }
   }
   function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
 
   // Any "pencil" the game prints gets the pencil color.
   function pencilize(text) {
-    const esc = text.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    const esc = String(text).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
     return esc.replace(/(pencils?)/gi, '<span class="pencil">$1</span>');
   }
 
@@ -161,6 +234,7 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
   }
 
   function once(flag, fn) { if (!S.flags[flag]) { S.flags[flag] = true; fn(); } }
+  function later(ms, fn) { setTimeout(() => { fn(); render(); save(); }, ms); }
 
   function achieve(id, name) {
     if (S.achv[id]) return;
@@ -168,15 +242,25 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
     say('achievement: ' + name + '.');
   }
 
-  // ---- actions ----
+  // ---- snapping ----
+  function doSnap(n) {
+    n = Math.min(n, S.pencils);
+    if (n <= 0) return 0;
+    S.pencils -= n; S.snapped += n; S.totalSnapped += n;
+    if (S.town !== null) {
+      S.town = Math.max(townFloor(), S.town - n);
+      if (S.town === townFloor() && !S.flags.act3) once('townStuck', () =>
+        later(2000, () => say('the number on the sidewalk stops going down. ' + townFloor() + '. the rest are out there somewhere.')));
+    }
+    afterSnap();
+    return n;
+  }
+
   function snap() {
     if (S.pencils <= 0) return;
-    const n = Math.min(S.built.bench ? 2 : 1, S.pencils);
-    S.pencils -= n; S.snapped += n; S.totalSnapped += n;
-    const lines = ['snap.', 'a clean break.', 'snap. the halves roll off the counter.', 'it breaks like it wanted to.', 'snap.'];
-    say(lines[Math.floor(Math.random() * lines.length)]);
+    doSnap(count('bench') ? 2 : 1);
+    say(pick(['snap.', 'a clean break.', 'snap. the halves roll off the counter.', 'it breaks like it wanted to.', 'snap.']));
     startCd('snap');
-    afterSnap();
   }
 
   function afterSnap() {
@@ -190,60 +274,158 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
     if (S.pencils === 0) once('firstEmpty', () => say('no pencils left.'));
   }
 
+  // ---- customers ----
+  function sell() {
+    if (S.queue <= 0 || S.snapped <= 0) return false;
+    // Customers buy a handful once the shop is established.
+    const n = Math.min(S.snapped, 1 + (S.flags.act2 ? 1 : 0) + count('storefront') * 2);
+    S.queue -= 1; S.snapped -= n; S.sales += 1;
+    S.coins += n * (1 + (count('register') ? 1 : 0));
+    if (S.coins >= 8) once('rep', repArrives);
+    return true;
+  }
+
   function ring() {
-    if (S.queue <= 0 || S.snapped <= 0) return;
-    S.queue -= 1; S.snapped -= 1; S.sales += 1;
-    const pay = 1 + (S.built.register ? 1 : 0);
-    S.coins += pay;
-    const lines = [
+    if (!sell()) return;
+    say(pick([
       'the customer takes the halves, pays, and leaves without a word.',
       'they hold the pieces up to the light. they seem satisfied.',
       'paid in exact change. they don\'t look you in the eye.',
       'the customer nods, pockets the halves, and goes.',
-    ];
-    say(lines[Math.floor(Math.random() * lines.length)]);
+    ]));
     startCd('ring');
-    if (S.coins >= 8) once('rep', repArrives);
   }
 
+  const queueCap = () => 6 + count('storefront') * 6;
+  const customerEvery = () => count('storefront') ? 2500 : count('sign') ? 5000 : 9000;
+
+  function customerLine() {
+    return pick(['the bell rings. someone joins the line.', 'a man in a raincoat waits. he is holding nothing.',
+      'a schoolteacher waits, checking her watch.', 'someone waits. they look like they\'ve been here before.']);
+  }
+
+  // ---- story ----
   function repArrives() {
     say('a stranger in a gray suit is standing by the door. you didn\'t hear the bell.');
-    setTimeout(() => say('"nice little operation, ' + 'friend." they say. "I know a supplier. I know a carpenter."'), 2500);
-    setTimeout(() => { say('the rep leaves a card on the counter. it just says BUILD.'); S.flags.buildOpen = true; render(); save(); }, 5000);
+    later(2500, () => say('"nice little operation, friend," they say. "I know a supplier. I know a carpenter."'));
+    later(5000, () => { say('the rep leaves a card on the counter. it just says BUILD.'); S.flags.buildOpen = true; });
   }
 
+  function checkAct1Builds() {
+    if (['bench', 'sign', 'register'].every(id => count(id))) once('hireOpen', () => {
+      later(1500, () => say('"you can\'t do this alone," the rep says. "you\'ll need help." they say your name. you never told them your name.'));
+    });
+  }
+
+  function endAct1() {
+    say('the shop hums. snap. snap. snap. the rep is watching from across the street.');
+    later(3000, () => { S.flags.act1Done = true; startAct2(); });
+  }
+
+  function startAct2() {
+    once('act2', () => {
+      achieve('act1', 'Open for Business');
+      say('the rep crosses the street. "a friend of mine makes machines," they say. "and you\'ll want more hands."');
+      S.town = TOWN_PENCILS;
+      later(4000, () => say('someone has chalked a number on the sidewalk outside: ' + TOWN_PENCILS + '. the next morning it is smaller.'));
+    });
+  }
+
+  function openDeals() {
+    once('dealsOpen', () => later(3000, () =>
+      say('"the school on Elm Street has a lot of pencils," the rep says. "someone should talk to them."')));
+  }
+
+  // ---- building and hiring ----
   function build(b) {
-    if (S.built[b.id] || S.coins < b.cost) return;
-    S.coins -= b.cost; S.built[b.id] = true;
+    const n = count(b.id), res = b.res || 'coins';
+    if ((b.max || 1) <= n || S[res] < b.cost(n)) return;
+    S[res] -= b.cost(n); S.built[b.id] = n + 1;
     const msgs = {
       bench: 'the bench is heavy oak. there are notches along the edge, already worn in.',
       sign: 'the sign goes up: THE SNAP SHOPPE. people slow down to read it.',
       register: 'the register chimes. its receipt paper is printed with a faint watermark: BP.',
+      snapomatic: n === 0 ? 'the Snap-o-Matic arrives in a crate stamped BP. it hums before you plug it in.' : 'another Snap-o-Matic. they hum in unison.',
+      silo: 'the silo goes up out back. it fills before the first crate arrives.',
+      storefront: 'the wall comes down and the shop gets bigger. the line goes out the door.',
+      backroom: 'a back room, with lockers. the staff hang up their coats and never take them home.',
+      snapomatic2: 'the machines get new gears. they snap faster than you can watch.',
+      trapdoor: 'the boards come up. there are stairs, going down into the dark.',
     };
     say(msgs[b.id]);
-    if (b.id === 'sign') $('place').textContent = 'The Snap Shoppe';
-    if (BUILDS.every(x => S.built[x.id])) once('hireOpen', () => {
-      setTimeout(() => { say('"you can\'t do this alone," the rep says. "you\'ll need help." they say your name. you never told them your name.'); render(); save(); }, 1500);
-    });
+    if (b.id === 'snapomatic' && n === 0) { achieve('auto', 'Automation'); openDeals(); }
+    if (b.id === 'trapdoor') later(3000, () => { say('cold air comes up the stairs. it smells like cedar and graphite.'); S.flags.act2Done = true; });
+    checkAct1Builds();
     render(); save();
   }
 
-  function hire(delta) {
-    if (delta > 0 && S.coins >= hireCost()) { S.coins -= hireCost(); S.snappers += 1;
-      say(S.snappers === 1 ? 'a quiet person in a clean apron takes a spot at the bench.' : 'another snapper. they nod to the others but don\'t speak.');
-      if (S.snappers >= 1) once('act1End', () => setTimeout(endAct1, 20000));
+  const hireCost = r => r.base + staff(r.id) * r.step;
+  const machineSlots = () => count('snapomatic') * 2;
+
+  function canHire(r) {
+    if (S.coins < hireCost(r) || staffTotal() >= staffCap()) return false;
+    if (r.id === 'machinist' && staff('machinist') >= machineSlots()) return false;
+    return true;
+  }
+
+  function hire(r, delta) {
+    if (delta > 0 && canHire(r)) {
+      S.coins -= hireCost(r); S.staff[r.id] = staff(r.id) + 1;
+      const first = {
+        snapper: 'a quiet person in a clean apron takes a spot at the bench.',
+        cashier: 'the new cashier knows how to work the register already.',
+        machinist: 'the machinist pats the Snap-o-Matic like a horse.',
+        dealmaker: 'the dealmaker has business cards already. you never ordered any.',
+      };
+      say(staff(r.id) === 1 ? first[r.id] : 'another ' + r.name + '. they nod to the others but don\'t speak.');
+      if (r.id === 'snapper') once('act1End', () => later(20000, endAct1));
     }
-    if (delta < 0 && S.snappers > 0) { S.snappers -= 1; S.coins += Math.floor(hireCost() / 2); say('a snapper hangs up their apron.'); }
+    if (delta < 0 && staff(r.id) > 0) {
+      S.staff[r.id] -= 1; S.coins += Math.floor(hireCost(r) / 2);
+      say('a ' + r.name + ' hangs up their apron.');
+    }
     render(); save();
   }
-  const hireCost = () => 20 + S.snappers * 10;
 
-  function endAct1() {
-    say('the shop hums. snap. snap. snap. the rep is watching from across the street.');
-    setTimeout(() => {
-      say('end of act 1. the shoppe will grow, and the basement is waiting.');
-      S.flags.act1Done = true; render(); save();
-    }, 3000);
+  // ---- deals ----
+  function pursue() {
+    const d = S.deal, c = CONTRACTS[d.i];
+    if (!c || d.phase !== 'open' || staff('dealmaker') === 0) return;
+    d.phase = 'talks'; d.prog = 0;
+    say('a dealmaker heads out to ' + c.client + '.');
+    render(); save();
+  }
+
+  function tickDeal(dt) {
+    const d = S.deal, c = CONTRACTS[d.i];
+    if (!c) return;
+    if (d.phase === 'talks') {
+      d.prog += dt * staff('dealmaker');
+      if (d.prog >= c.talk) {
+        d.phase = 'work'; d.start = S.totalSnapped;
+        S.pencils += c.size;
+        say(c.landed);
+      }
+    } else if (d.phase === 'work' && S.totalSnapped - d.start >= c.size) {
+      S.coins += c.reward;
+      say(c.done + ' (+' + c.reward + ' coins)');
+      if (d.i === 0) achieve('school', 'School\'s Out');
+      dealHint(d.i);
+      d.i += 1; d.phase = 'open'; d.prog = 0;
+      if (d.i >= CONTRACTS.length) once('trapdoorReady', () => later(4000, () =>
+        say('"there\'s something under the floor," the rep says. "there always was."')));
+      save();
+    }
+  }
+
+  function dealHint(i) {
+    const hints = [
+      null,
+      'a billboard goes up across the street: BIG PENCIL. WE\'RE ALWAYS THERE.',
+      'the rep\'s clipboard has a number on it. it\'s your snap count, to the pencil.',
+      'Elm Street Elementary got a new shipment this morning. the boxes say BP.',
+    ];
+    if (hints[i]) later(6000, () => say(hints[i]));
   }
 
   // ---- world ticks ----
@@ -258,10 +440,9 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
 
     if (S.flags.firstCustomer && S.sales >= 1) {
       S.custT += dt;
-      const every = S.built.sign ? 5000 : 9000;
-      if (S.custT >= every) {
-        S.custT -= every;
-        if (S.queue < 6) { S.queue += 1; if (Math.random() < .3) say(customerLine()); }
+      while (S.custT >= customerEvery()) {
+        S.custT -= customerEvery();
+        if (S.queue < queueCap()) { S.queue += 1; if (Math.random() < .2) say(customerLine()); }
       }
     }
 
@@ -271,70 +452,49 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
       if (S.restockT >= RESTOCK_MS) { S.restockT = 0; restock(); }
     } else S.restockT = 0;
 
-    if (S.snappers > 0) {
-      S.staffT += dt;
-      const every = 4000 / S.snappers;
-      while (S.staffT >= every) {
-        S.staffT -= every;
-        if (S.pencils > 0) { S.pencils -= 1; S.snapped += 1; S.totalSnapped += 1; afterSnap(); }
-      }
-    }
+    work('snapper', dt, () => doSnap(1));
+    work('cashier', dt, sell);
+    work('machinist', dt, () => {
+      const n = doSnap(count('snapomatic2') ? 2 : 1);
+      S.shaveT += n;
+      while (S.shaveT >= 3) { S.shaveT -= 3; S.shavings += 1; }
+    });
+    tickDeal(dt);
     render();
   }
 
-  function customerLine() {
-    const l = ['the bell rings. someone joins the line.', 'a man in a raincoat waits. he is holding nothing.', 'a schoolteacher waits, checking her watch.', 'someone waits. they look like they\'ve been here before.'];
-    return l[Math.floor(Math.random() * l.length)];
+  function work(id, dt, act) {
+    const role = ROLES.find(r => r.id === id), n = staff(id);
+    if (!n) return;
+    S.work[id] = (S.work[id] || 0) + dt * n;
+    while (S.work[id] >= role.period) { S.work[id] -= role.period; act(); }
   }
 
+  const crateMult = () => count('silo') ? 2 : 1;
+
   function restock() {
-    const n = 8 + Object.keys(S.built).length * 4 + S.snappers * 6;
+    const n = (8 + Object.keys(S.built).length * 4 + staffTotal() * 6) * crateMult();
     S.pencils += n; S.restocks += 1;
-    const lines = [
-      'a knock at the back door. a crate of ' + n + ' pencils. nobody is there.',
-      'another crate by the back door. you didn\'t order it.',
-      'the back door is open a crack. ' + n + ' pencils on the step.',
-      'more pencils. as soon as you run out. every time.',
-    ];
-    say(S.restocks === 1 ? lines[0] : lines[1 + (S.restocks % 3)]);
+    say(S.restocks === 1 ? 'a knock at the back door. a crate of ' + n + ' pencils. nobody is there.'
+      : pick(['another crate by the back door. you didn\'t order it.', 'the back door is open a crack. ' + n + ' pencils on the step.',
+        'more pencils. as soon as you run out. every time.']));
     save();
   }
 
   function newDay() {
     S.day += 1;
-    const crate = 15 + Object.keys(S.built).length * 8 + S.snappers * 10;
+    const crate = (15 + Object.keys(S.built).length * 8 + staffTotal() * 10) * crateMult();
     S.pencils += crate;
     if (S.day === 2) say('morning. a crate of pencils sits on the doorstep. no note. no truck tracks.');
     else if (S.day === 3) say('another crate. stamped on the side, faintly: BP.');
     else if (S.day === 5) say('the crate is bigger today. it\'s like it knows.');
     else if (S.day === 7) say('one of the pencils in the crate reads PROPERTY OF B.P.M. INC. you snap it first.');
+    else if (S.flags.act2 && S.day % 4 === 0 && staffTotal() > 2) say('the staff never take a lunch break. you\'ve never seen any of them eat.');
     else say('morning. the crate is waiting. ' + crate + ' pencils.');
     save();
   }
 
   // ---- render ----
-  const buildBtns = {};
-  BUILDS.forEach(b => {
-    const btn = document.createElement('button');
-    btn.className = 'act'; btn.id = 'b-' + b.id;
-    btn.innerHTML = '<span class="lbl">' + b.name + '</span><span class="cost">' + b.cost + ' coins · ' + b.note + '</span>';
-    btn.addEventListener('click', () => build(b));
-    $('g-build').appendChild(btn); buildBtns[b.id] = btn;
-  });
-  const staffRow = document.createElement('div');
-  staffRow.className = 'staff';
-  staffRow.innerHTML = '<span>snappers <span id="v-snappers">0</span></span><span><button id="b-fire" aria-label="let a snapper go">−</button> <button id="b-hire" aria-label="hire a snapper">+</button></span>';
-  $('g-hire').appendChild(staffRow);
-  const hireNote = document.createElement('div');
-  hireNote.style.cssText = 'font-size:14px;color:var(--muted)';
-  hireNote.id = 'v-hirecost';
-  $('g-hire').appendChild(hireNote);
-  const endCard = document.createElement('p');
-  endCard.className = 'endcard'; endCard.hidden = true;
-  endCard.textContent = 'End of act 1. Acts 2 and 3 are on the way.';
-  $('g-hire').appendChild(endCard);
-
-  // The gray bar slides out with a CSS transition, so it stays smooth between ticks.
   function startCd(key) {
     cooldownUntil[key] = Date.now() + CD[key];
     const bar = $('b-' + key).querySelector('.cd');
@@ -345,57 +505,121 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
     bar.style.width = '0';
     setTimeout(render, CD[key] + 20);
   }
+  const cooling = key => cooldownUntil[key] - Date.now() > 0;
 
-  function setCd(btn, key) {
-    return cooldownUntil[key] - Date.now() > 0;
-  }
+  const buildBtns = {};
+  BUILDS.forEach(b => {
+    const btn = document.createElement('button');
+    btn.className = 'act'; btn.id = 'b-' + b.id; btn.hidden = true;
+    btn.innerHTML = '<span class="lbl">' + b.name + '</span><span class="cost"></span>';
+    btn.addEventListener('click', () => build(b));
+    $('g-build').appendChild(btn); buildBtns[b.id] = btn;
+  });
+
+  const roleEls = {};
+  ROLES.forEach(r => {
+    const el = document.createElement('div');
+    el.className = 'staff'; el.hidden = true;
+    el.innerHTML = '<span>' + r.name + 's</span><span class="n">0</span>' +
+      '<span class="btns"><button aria-label="let a ' + r.name + ' go">−</button><button aria-label="hire a ' + r.name + '">+</button></span>' +
+      '<span class="note"></span>';
+    const [minus, plus] = el.querySelectorAll('button');
+    minus.addEventListener('click', () => hire(r, -1));
+    plus.addEventListener('click', () => hire(r, 1));
+    $('g-hire').appendChild(el);
+    roleEls[r.id] = { el, n: el.querySelector('.n'), minus, plus, note: el.querySelector('.note') };
+  });
 
   function render() {
     $('day').textContent = 'day ' + S.day;
-    if (S.built.sign) $('place').textContent = 'The Snap Shoppe';
+    $('place').textContent = count('sign') ? 'The Snap Shoppe' : 'A Quiet Shop';
+    $('v-act').textContent = S.flags.act2 ? 'act 2 of 3' : 'act 1 of 3';
+
     $('v-pencils').textContent = S.pencils;
     $('v-snapped').textContent = S.snapped;
     $('v-coins').textContent = S.coins;
+    $('v-shavings').textContent = S.shavings;
     $('v-queue').textContent = S.queue;
     $('r-snapped').hidden = S.totalSnapped === 0;
     $('r-coins').hidden = !S.flags.firstCustomer;
     $('r-queue').hidden = !S.flags.firstCustomer;
+    $('r-shavings').hidden = !count('snapomatic');
+    $('r-town').hidden = S.town === null;
+    if (S.town !== null) $('v-town').textContent = S.town.toLocaleString('en-US');
 
-    const snapCooling = setCd($('b-snap'), 'snap');
-    $('b-snap').disabled = snapCooling || S.pencils <= 0;
-    $('b-snap').querySelector('.lbl').innerHTML = pencilize(S.built.bench ? 'snap two pencils' : 'snap a pencil');
-
+    $('b-snap').disabled = cooling('snap') || S.pencils <= 0;
+    $('b-snap').querySelector('.lbl').innerHTML = pencilize(count('bench') ? 'snap two pencils' : 'snap a pencil');
     $('b-ring').hidden = !S.flags.firstCustomer;
-    const ringCooling = setCd($('b-ring'), 'ring');
-    $('b-ring').disabled = ringCooling || S.queue <= 0 || S.snapped <= 0;
+    $('b-ring').disabled = cooling('ring') || S.queue <= 0 || S.snapped <= 0;
 
     $('g-build').hidden = !S.flags.buildOpen;
     BUILDS.forEach(b => {
-      const btn = buildBtns[b.id];
-      btn.hidden = !!S.built[b.id];
-      btn.disabled = S.coins < b.cost;
+      const btn = buildBtns[b.id], n = count(b.id), res = b.res || 'coins';
+      btn.hidden = !b.show() || n >= (b.max || 1);
+      if (btn.hidden) return;
+      btn.disabled = S[res] < b.cost(n);
+      btn.querySelector('.cost').textContent = b.cost(n) + ' ' + res + ' · ' + b.note;
     });
 
     $('g-hire').hidden = !S.flags.hireOpen;
-    $('v-snappers').textContent = S.snappers;
-    $('b-hire').disabled = S.coins < hireCost();
-    $('b-fire').disabled = S.snappers === 0;
-    $('v-hirecost').textContent = 'next snapper: ' + hireCost() + ' coins';
-    endCard.hidden = !S.flags.act1Done;
-    if (S.flags.act1Done) achieve('act1', 'Open for Business');
+    $('v-hirehead').textContent = S.flags.act2 ? 'staff · ' + staffTotal() + ' of ' + staffCap() : 'hire help';
+    ROLES.forEach(r => {
+      const e = roleEls[r.id];
+      e.el.hidden = !r.show();
+      if (e.el.hidden) return;
+      e.n.textContent = staff(r.id);
+      e.plus.disabled = !canHire(r);
+      e.minus.disabled = staff(r.id) === 0;
+      let note = hireCost(r) + ' coins · ' + r.note;
+      if (r.id === 'machinist') note += ' (' + staff('machinist') + ' of ' + machineSlots() + ' seats)';
+      e.note.textContent = note;
+    });
+
+    renderDeal();
+
+    const end = S.flags.act2Done ? 'End of act 2. The basement and the town are next.'
+      : S.flags.act1Done && !S.flags.act2 ? 'End of act 1.' : '';
+    $('endcard').hidden = !end;
+    $('endcard').textContent = end;
 
     const names = Object.values(S.achv);
     $('achv').innerHTML = names.length ? '<div>achievements</div>' + names.map(n => '<div>· ' + n + '</div>').join('') : '';
   }
 
+  function renderDeal() {
+    const d = S.deal, c = CONTRACTS[d.i];
+    $('g-deals').hidden = !S.flags.dealsOpen;
+    if (!S.flags.dealsOpen) return;
+    if (!c) {
+      $('v-client').textContent = 'no more deals';
+      $('v-terms').textContent = 'every client in town has been served.';
+      $('v-dealbar-wrap').hidden = true; $('v-dealstate').textContent = ''; $('b-pursue').hidden = true;
+      return;
+    }
+    $('v-client').textContent = c.client;
+    $('v-terms').innerHTML = pencilize(c.size + ' pencils · ' + c.reward + ' coins. ' + c.pitch);
+    $('v-dealbar-wrap').hidden = d.phase === 'open';
+    $('b-pursue').hidden = d.phase !== 'open';
+    $('b-pursue').disabled = staff('dealmaker') === 0;
+    if (d.phase === 'open') {
+      $('v-dealstate').textContent = staff('dealmaker') ? '' : 'hire a dealmaker to pursue it.';
+    } else if (d.phase === 'talks') {
+      $('v-dealbar').style.width = Math.min(100, d.prog / c.talk * 100) + '%';
+      $('v-dealstate').textContent = 'in talks';
+    } else {
+      const done = Math.min(c.size, S.totalSnapped - d.start);
+      $('v-dealbar').style.width = (done / c.size * 100) + '%';
+      $('v-dealstate').innerHTML = pencilize('snapped ' + done + ' of ' + c.size + ' pencils');
+    }
+  }
+
   $('b-snap').addEventListener('click', snap);
   $('b-ring').addEventListener('click', ring);
-  $('b-hire').addEventListener('click', () => hire(1));
-  $('b-fire').addEventListener('click', () => hire(-1));
+  $('b-pursue').addEventListener('click', pursue);
   $('b-reset').addEventListener('click', () => { $('b-reset-yes').hidden = false; });
   $('b-reset-yes').addEventListener('click', () => {
     try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
-    S = fresh(); $('log').innerHTML = ''; $('place').textContent = 'A Quiet Shop';
+    S = fresh(); $('log').innerHTML = '';
     $('b-reset-yes').hidden = true; intro(); render();
   });
 
@@ -407,6 +631,10 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
   // Restore the log on reload, oldest first so newest ends on top.
   if (S.log.length) S.log.slice().reverse().forEach(t => say(t, false));
   else intro();
+
+  // Saves made between scripted beats resume here.
+  if (S.flags.act1End && !S.flags.act1Done) later(5000, endAct1);
+  if (S.flags.act1Done) startAct2();
 
   setInterval(tick, 200);
   setInterval(save, 5000);

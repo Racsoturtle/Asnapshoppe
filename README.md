@@ -11,6 +11,6 @@ and share the link. Progress saves in your browser.
 ## Status
 
 - [x] Act 1: the counter
-- [ ] Act 2: the Shoppe (staff, machines, contracts)
+- [x] Act 2: the Shoppe (staff, machines, contracts)
 - [ ] Act 3: the town map and the basement
 - [ ] Ending
