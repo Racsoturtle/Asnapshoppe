@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A Snapping Shoppe</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+/* Layout: ADR's three columns (log | actions | stores) on a bare page, stacking to one column on phones. */
+:root {
+  --paper: #ffffff;
+  --ink: #141414;
+  --muted: #8a8a8a;
+  --rule: #d6d6d6;
+  --button: #f2f2f2;
+  --pencil: #e8a317;
+  --pencil-edge: rgba(90, 55, 0, .55);
+  --serif: "Crimson Pro", "Times New Roman", Times, serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0d0d0d; --ink: #e9e9e9; --muted: #7a7a7a; --rule: #333; --button: #1b1b1b;
+    --pencil: #f2b233; --pencil-edge: transparent; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0d0d0d; --ink: #e9e9e9; --muted: #7a7a7a; --rule: #333; --button: #1b1b1b;
+  --pencil: #f2b233; --pencil-edge: transparent; color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--serif); font-size: 18px; line-height: 1.35;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px;
+}
+.pencil { color: var(--pencil); text-shadow: 0 0 1px var(--pencil-edge); }
+header { display: flex; gap: 24px; align-items: baseline; flex-wrap: wrap; max-width: 960px; margin: 0 auto 20px; border-bottom: 1px solid var(--rule); padding-bottom: 8px; }
+header h1 { font-size: 22px; font-weight: 600; margin: 0; }
+header .day { color: var(--muted); font-size: 16px; font-variant-numeric: tabular-nums; }
+main { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, .9fr); gap: 32px; max-width: 960px; margin: 0 auto; }
+#log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow: hidden; -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+#log li { animation: in .6s ease-out; }
+@keyframes in { from { opacity: 0; } to { opacity: 1; } }
+.col h2 { font-size: 15px; font-weight: 600; text-transform: lowercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px; }
+.group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
+.group[hidden] { display: none !important; }
+button.act {
+  position: relative; overflow: hidden; width: 100%; max-width: 220px; text-align: left;
+  font: inherit; font-size: 17px; color: var(--ink); background: var(--button);
+  border: 1px solid var(--ink); padding: 4px 10px; cursor: pointer;
+}
+button.act:disabled { color: var(--muted); border-color: var(--rule); cursor: default; }
+button.act:focus-visible { outline: 2px solid var(--pencil); outline-offset: 2px; }
+button.act .cd { position: absolute; left: 0; top: 0; bottom: 0; background: var(--rule); opacity: .6; width: 0; pointer-events: none; }
+button.act .lbl { position: relative; }
+button.act .cost { position: relative; display: block; font-size: 14px; color: var(--muted); }
+.stores { border: 1px solid var(--ink); padding: 10px 12px; display: grid; gap: 2px; }
+.stores[hidden] { display: none !important; }
+.row { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
+.row[hidden] { display: none !important; }
+.staff { display: flex; align-items: center; justify-content: space-between; gap: 8px; max-width: 220px; font-variant-numeric: tabular-nums; }
+.staff button { font: inherit; font-size: 15px; background: var(--button); color: var(--ink); border: 1px solid var(--ink); width: 28px; cursor: pointer; }
+.staff button:disabled { color: var(--muted); border-color: var(--rule); cursor: default; }
+#achv { font-size: 15px; color: var(--muted); display: grid; gap: 2px; margin-top: 18px; }
+footer { max-width: 960px; margin: 32px auto 0; display: flex; gap: 12px; align-items: center; color: var(--muted); font-size: 14px; flex-wrap: wrap; }
+footer button { font: inherit; font-size: 14px; background: none; border: none; color: var(--muted); text-decoration: underline; cursor: pointer; padding: 0; }
+.endcard { border-top: 1px solid var(--rule); padding-top: 10px; font-style: italic; }
+@media (max-width: 720px) {
+  main { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  #actions { order: 1; } #side { order: 2; } #logcol { order: 3; }
+  #log { max-height: 40vh; }
+}
+@media (prefers-reduced-motion: reduce) { #log li { animation: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="place">A Quiet Shop</h1>
+  <span class="day" id="day">day 1</span>
+</header>
+
+<main>
+  <section class="col" id="logcol" aria-live="polite"><ul id="log"></ul></section>
+
+  <section class="col" id="actions">
+    <div class="group" id="g-counter">
+      <button class="act" id="b-snap"><span class="cd"></span><span class="lbl">snap a <span class="pencil">pencil</span></span></button>
+      <button class="act" id="b-ring" hidden><span class="cd"></span><span class="lbl">ring up customer</span></button>
+    </div>
+    <div class="group" id="g-build" hidden>
+      <h2>build</h2>
+    </div>
+    <div class="group" id="g-hire" hidden>
+      <h2>hire help</h2>
+    </div>
+  </section>
+
+  <section class="col" id="side">
+    <div class="stores" id="stores">
+      <div class="row" id="r-pencils"><span><span class="pencil">pencils</span></span><span id="v-pencils">0</span></div>
+      <div class="row" id="r-snapped" hidden><span>snapped</span><span id="v-snapped">0</span></div>
+      <div class="row" id="r-coins" hidden><span>coins</span><span id="v-coins">0</span></div>
+      <div class="row" id="r-queue" hidden><span>waiting</span><span id="v-queue">0</span></div>
+    </div>
+    <div id="achv"></div>
+  </section>
+</main>
+
+<footer>
+  <span>act 1 of 3 · saves in this browser</span>
+  <button id="b-reset">start over</button>
+  <button id="b-reset-yes" hidden>yes, erase my shop</button>
+</footer>
+
+<script>
+(() => {
+  const SAVE_KEY = 'snapping-shoppe-v1';
+  const DAY_MS = 45000;
+  const CD = { snap: 1200, ring: 1500 };
+
+  const BUILDS = [
+    { id: 'bench', name: 'snapping bench', cost: 12, note: 'two at a time' },
+    { id: 'sign', name: 'a sign', cost: 20, note: 'more customers' },
+    { id: 'register', name: 'cash register', cost: 35, note: '+1 coin a sale' },
+  ];
+
+  const fresh = () => ({
+    pencils: 12, snapped: 0, coins: 0, queue: 0, totalSnapped: 0, sales: 0,
+    day: 1, dayT: 0, custT: 0, staffT: 0,
+    flags: {}, built: {}, snappers: 0, achv: {}, log: [],
+  });
+
+  let S = load() || fresh();
+  const cooldownUntil = { snap: 0, ring: 0 };
+  const $ = id => document.getElementById(id);
+
+  function load() {
+    try { const raw = localStorage.getItem(SAVE_KEY); return raw ? Object.assign(fresh(), JSON.parse(raw)) : null; }
+    catch (e) { return null; }
+  }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+
+  // Any "pencil" the game prints gets the pencil color.
+  function pencilize(text) {
+    const esc = text.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    return esc.replace(/(pencils?)/gi, '<span class="pencil">$1</span>');
+  }
+
+  function say(text, keep = true) {
+    if (keep) { S.log.unshift(text); S.log = S.log.slice(0, 40); }
+    const li = document.createElement('li');
+    li.innerHTML = pencilize(text);
+    $('log').prepend(li);
+    while ($('log').children.length > 40) $('log').lastChild.remove();
+  }
+
+  function once(flag, fn) { if (!S.flags[flag]) { S.flags[flag] = true; fn(); } }
+
+  function achieve(id, name) {
+    if (S.achv[id]) return;
+    S.achv[id] = name;
+    say('achievement: ' + name + '.');
+  }
+
+  // ---- actions ----
+  function snap() {
+    if (S.pencils <= 0) return;
+    const n = Math.min(S.built.bench ? 2 : 1, S.pencils);
+    S.pencils -= n; S.snapped += n; S.totalSnapped += n;
+    const lines = ['snap.', 'a clean break.', 'snap. the halves roll off the counter.', 'it breaks like it wanted to.', 'snap.'];
+    say(lines[Math.floor(Math.random() * lines.length)]);
+    cooldownUntil.snap = Date.now() + CD.snap;
+    afterSnap();
+  }
+
+  function afterSnap() {
+    if (S.totalSnapped >= 1) achieve('first', 'First Snap');
+    if (S.totalSnapped >= 100) achieve('clean', 'Clean Break');
+    if (S.totalSnapped >= 5) once('firstCustomer', () => {
+      say('the bell over the door rings.');
+      say('a customer stands at the counter, watching the snapped pencils.');
+      S.queue += 1;
+    });
+    if (S.pencils === 0) once('firstEmpty', () => say('no pencils left. maybe more will come in the morning.'));
+  }
+
+  function ring() {
+    if (S.queue <= 0 || S.snapped <= 0) return;
+    S.queue -= 1; S.snapped -= 1; S.sales += 1;
+    const pay = 1 + (S.built.register ? 1 : 0);
+    S.coins += pay;
+    const lines = [
+      'the customer takes the halves, pays, and leaves without a word.',
+      'they hold the pieces up to the light. they seem satisfied.',
+      'paid in exact change. they don\'t look you in the eye.',
+      'the customer nods, pockets the halves, and goes.',
+    ];
+    say(lines[Math.floor(Math.random() * lines.length)]);
+    cooldownUntil.ring = Date.now() + CD.ring;
+    if (S.coins >= 8) once('rep', repArrives);
+  }
+
+  function repArrives() {
+    say('a stranger in a gray suit is standing by the door. you didn\'t hear the bell.');
+    setTimeout(() => say('"nice little operation, ' + 'friend." they say. "I know a supplier. I know a carpenter."'), 2500);
+    setTimeout(() => { say('the rep leaves a card on the counter. it just says BUILD.'); S.flags.buildOpen = true; render(); save(); }, 5000);
+  }
+
+  function build(b) {
+    if (S.built[b.id] || S.coins < b.cost) return;
+    S.coins -= b.cost; S.built[b.id] = true;
+    const msgs = {
+      bench: 'the bench is heavy oak. there are notches along the edge, already worn in.',
+      sign: 'the sign goes up: THE SNAPPING SHOPPE. people slow down to read it.',
+      register: 'the register chimes. its receipt paper is printed with a faint watermark: BP.',
+    };
+    say(msgs[b.id]);
+    if (b.id === 'sign') $('place').textContent = 'The Snapping Shoppe';
+    if (BUILDS.every(x => S.built[x.id])) once('hireOpen', () => {
+      setTimeout(() => { say('"you can\'t do this alone," the rep says. "you\'ll need help." they say your name. you never told them your name.'); render(); save(); }, 1500);
+    });
+    render(); save();
+  }
+
+  function hire(delta) {
+    if (delta > 0 && S.coins >= hireCost()) { S.coins -= hireCost(); S.snappers += 1;
+      say(S.snappers === 1 ? 'a quiet person in a clean apron takes a spot at the bench.' : 'another snapper. they nod to the others but don\'t speak.');
+      if (S.snappers >= 1) once('act1End', () => setTimeout(endAct1, 20000));
+    }
+    if (delta < 0 && S.snappers > 0) { S.snappers -= 1; S.coins += Math.floor(hireCost() / 2); say('a snapper hangs up their apron.'); }
+    render(); save();
+  }
+  const hireCost = () => 20 + S.snappers * 10;
+
+  function endAct1() {
+    say('the shop hums. snap. snap. snap. the rep is watching from across the street.');
+    setTimeout(() => {
+      say('end of act 1. the shoppe will grow, and the basement is waiting.');
+      S.flags.act1Done = true; render(); save();
+    }, 3000);
+  }
+
+  // ---- world ticks ----
+  let last = Date.now();
+  function tick() {
+    const now = Date.now();
+    const dt = Math.min(now - last, 5000);
+    last = now;
+
+    S.dayT += dt;
+    if (S.dayT >= DAY_MS) { S.dayT -= DAY_MS; newDay(); }
+
+    if (S.flags.firstCustomer && S.sales >= 1) {
+      S.custT += dt;
+      const every = S.built.sign ? 5000 : 9000;
+      if (S.custT >= every) {
+        S.custT -= every;
+        if (S.queue < 6) { S.queue += 1; if (Math.random() < .3) say(customerLine()); }
+      }
+    }
+
+    if (S.snappers > 0) {
+      S.staffT += dt;
+      const every = 4000 / S.snappers;
+      while (S.staffT >= every) {
+        S.staffT -= every;
+        if (S.pencils > 0) { S.pencils -= 1; S.snapped += 1; S.totalSnapped += 1; afterSnap(); }
+      }
+    }
+    render();
+  }
+
+  function customerLine() {
+    const l = ['the bell rings. someone joins the line.', 'a man in a raincoat waits. he is holding nothing.', 'a schoolteacher waits, checking her watch.', 'someone waits. they look like they\'ve been here before.'];
+    return l[Math.floor(Math.random() * l.length)];
+  }
+
+  function newDay() {
+    S.day += 1;
+    const crate = 10 + Object.keys(S.built).length * 6 + S.snappers * 8;
+    S.pencils += crate;
+    if (S.day === 2) say('morning. a crate of pencils sits on the doorstep. no note. no truck tracks.');
+    else if (S.day === 3) say('another crate. stamped on the side, faintly: BP.');
+    else if (S.day === 5) say('the crate is bigger today. it\'s like it knows.');
+    else if (S.day === 7) say('one of the pencils in the crate reads PROPERTY OF B.P.M. INC. you snap it first.');
+    else say('morning. the crate is waiting. ' + crate + ' pencils.');
+    save();
+  }
+
+  // ---- render ----
+  const buildBtns = {};
+  BUILDS.forEach(b => {
+    const btn = document.createElement('button');
+    btn.className = 'act'; btn.id = 'b-' + b.id;
+    btn.innerHTML = '<span class="lbl">' + b.name + '</span><span class="cost">' + b.cost + ' coins · ' + b.note + '</span>';
+    btn.addEventListener('click', () => build(b));
+    $('g-build').appendChild(btn); buildBtns[b.id] = btn;
+  });
+  const staffRow = document.createElement('div');
+  staffRow.className = 'staff';
+  staffRow.innerHTML = '<span>snappers <span id="v-snappers">0</span></span><span><button id="b-fire" aria-label="let a snapper go">−</button> <button id="b-hire" aria-label="hire a snapper">+</button></span>';
+  $('g-hire').appendChild(staffRow);
+  const hireNote = document.createElement('div');
+  hireNote.style.cssText = 'font-size:14px;color:var(--muted)';
+  hireNote.id = 'v-hirecost';
+  $('g-hire').appendChild(hireNote);
+  const endCard = document.createElement('p');
+  endCard.className = 'endcard'; endCard.hidden = true;
+  endCard.textContent = 'End of act 1. Acts 2 and 3 are on the way.';
+  $('g-hire').appendChild(endCard);
+
+  function setCd(btn, key) {
+    const left = cooldownUntil[key] - Date.now();
+    btn.querySelector('.cd').style.width = left > 0 ? (left / CD[key] * 100) + '%' : '0';
+    return left > 0;
+  }
+
+  function render() {
+    $('day').textContent = 'day ' + S.day;
+    if (S.built.sign) $('place').textContent = 'The Snapping Shoppe';
+    $('v-pencils').textContent = S.pencils;
+    $('v-snapped').textContent = S.snapped;
+    $('v-coins').textContent = S.coins;
+    $('v-queue').textContent = S.queue;
+    $('r-snapped').hidden = S.totalSnapped === 0;
+    $('r-coins').hidden = !S.flags.firstCustomer;
+    $('r-queue').hidden = !S.flags.firstCustomer;
+
+    const snapCooling = setCd($('b-snap'), 'snap');
+    $('b-snap').disabled = snapCooling || S.pencils <= 0;
+    $('b-snap').querySelector('.lbl').innerHTML = pencilize(S.built.bench ? 'snap two pencils' : 'snap a pencil');
+
+    $('b-ring').hidden = !S.flags.firstCustomer;
+    const ringCooling = setCd($('b-ring'), 'ring');
+    $('b-ring').disabled = ringCooling || S.queue <= 0 || S.snapped <= 0;
+
+    $('g-build').hidden = !S.flags.buildOpen;
+    BUILDS.forEach(b => {
+      const btn = buildBtns[b.id];
+      btn.hidden = !!S.built[b.id];
+      btn.disabled = S.coins < b.cost;
+    });
+
+    $('g-hire').hidden = !S.flags.hireOpen;
+    $('v-snappers').textContent = S.snappers;
+    $('b-hire').disabled = S.coins < hireCost();
+    $('b-fire').disabled = S.snappers === 0;
+    $('v-hirecost').textContent = 'next snapper: ' + hireCost() + ' coins';
+    endCard.hidden = !S.flags.act1Done;
+    if (S.flags.act1Done) achieve('act1', 'Open for Business');
+
+    const names = Object.values(S.achv);
+    $('achv').innerHTML = names.length ? '<div>achievements</div>' + names.map(n => '<div>· ' + n + '</div>').join('') : '';
+  }
+
+  $('b-snap').addEventListener('click', snap);
+  $('b-ring').addEventListener('click', ring);
+  $('b-hire').addEventListener('click', () => hire(1));
+  $('b-fire').addEventListener('click', () => hire(-1));
+  $('b-reset').addEventListener('click', () => { $('b-reset-yes').hidden = false; });
+  $('b-reset-yes').addEventListener('click', () => {
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+    S = fresh(); $('log').innerHTML = ''; $('place').textContent = 'A Quiet Shop';
+    $('b-reset-yes').hidden = true; intro(); render();
+  });
+
+  function intro() {
+    say('the shop is quiet.');
+    setTimeout(() => say('a box of pencils sits on the counter.'), 1200);
+  }
+
+  // Restore the log on reload, oldest first so newest ends on top.
+  if (S.log.length) S.log.slice().reverse().forEach(t => say(t, false));
+  else intro();
+
+  setInterval(tick, 200);
+  setInterval(save, 5000);
+  render();
+})();
+</script>
+</body>
+</html>
