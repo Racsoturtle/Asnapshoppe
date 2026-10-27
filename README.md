@@ -1,4 +1,4 @@
-# A Snapping Shoppe
+# A Snap Shoppe
 
 A small text-only browser game in the style of [A Dark Room](https://adarkroom.doublespeakgames.com/).
 You run a shop that snaps pencils in half for money. Nobody asks why people pay for it.
