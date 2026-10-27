@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>A Snapping Shoppe</title>
+<title>A Snap Shoppe</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap">
@@ -121,7 +121,8 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
 (() => {
   const SAVE_KEY = 'snapping-shoppe-v1';
   const DAY_MS = 45000;
-  const CD = { snap: 1200, ring: 1500 };
+  const CD = { snap: 1200, ring: 3500 };
+  const RESTOCK_MS = 5000;
 
   const BUILDS = [
     { id: 'bench', name: 'snapping bench', cost: 12, note: 'two at a time' },
@@ -131,7 +132,7 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
 
   const fresh = () => ({
     pencils: 12, snapped: 0, coins: 0, queue: 0, totalSnapped: 0, sales: 0,
-    day: 1, dayT: 0, custT: 0, staffT: 0,
+    day: 1, dayT: 0, custT: 0, staffT: 0, restockT: 0, restocks: 0,
     flags: {}, built: {}, snappers: 0, achv: {}, log: [],
   });
 
@@ -174,7 +175,7 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
     S.pencils -= n; S.snapped += n; S.totalSnapped += n;
     const lines = ['snap.', 'a clean break.', 'snap. the halves roll off the counter.', 'it breaks like it wanted to.', 'snap.'];
     say(lines[Math.floor(Math.random() * lines.length)]);
-    cooldownUntil.snap = Date.now() + CD.snap;
+    startCd('snap');
     afterSnap();
   }
 
@@ -186,7 +187,7 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
       say('a customer stands at the counter, watching the snapped pencils.');
       S.queue += 1;
     });
-    if (S.pencils === 0) once('firstEmpty', () => say('no pencils left. maybe more will come in the morning.'));
+    if (S.pencils === 0) once('firstEmpty', () => say('no pencils left.'));
   }
 
   function ring() {
@@ -201,7 +202,7 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
       'the customer nods, pockets the halves, and goes.',
     ];
     say(lines[Math.floor(Math.random() * lines.length)]);
-    cooldownUntil.ring = Date.now() + CD.ring;
+    startCd('ring');
     if (S.coins >= 8) once('rep', repArrives);
   }
 
@@ -216,11 +217,11 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
     S.coins -= b.cost; S.built[b.id] = true;
     const msgs = {
       bench: 'the bench is heavy oak. there are notches along the edge, already worn in.',
-      sign: 'the sign goes up: THE SNAPPING SHOPPE. people slow down to read it.',
+      sign: 'the sign goes up: THE SNAP SHOPPE. people slow down to read it.',
       register: 'the register chimes. its receipt paper is printed with a faint watermark: BP.',
     };
     say(msgs[b.id]);
-    if (b.id === 'sign') $('place').textContent = 'The Snapping Shoppe';
+    if (b.id === 'sign') $('place').textContent = 'The Snap Shoppe';
     if (BUILDS.every(x => S.built[x.id])) once('hireOpen', () => {
       setTimeout(() => { say('"you can\'t do this alone," the rep says. "you\'ll need help." they say your name. you never told them your name.'); render(); save(); }, 1500);
     });
@@ -264,6 +265,12 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
       }
     }
 
+    // An empty shop never stays empty for long.
+    if (S.pencils === 0) {
+      S.restockT += dt;
+      if (S.restockT >= RESTOCK_MS) { S.restockT = 0; restock(); }
+    } else S.restockT = 0;
+
     if (S.snappers > 0) {
       S.staffT += dt;
       const every = 4000 / S.snappers;
@@ -280,9 +287,22 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
     return l[Math.floor(Math.random() * l.length)];
   }
 
+  function restock() {
+    const n = 8 + Object.keys(S.built).length * 4 + S.snappers * 6;
+    S.pencils += n; S.restocks += 1;
+    const lines = [
+      'a knock at the back door. a crate of ' + n + ' pencils. nobody is there.',
+      'another crate by the back door. you didn\'t order it.',
+      'the back door is open a crack. ' + n + ' pencils on the step.',
+      'more pencils. as soon as you run out. every time.',
+    ];
+    say(S.restocks === 1 ? lines[0] : lines[1 + (S.restocks % 3)]);
+    save();
+  }
+
   function newDay() {
     S.day += 1;
-    const crate = 10 + Object.keys(S.built).length * 6 + S.snappers * 8;
+    const crate = 15 + Object.keys(S.built).length * 8 + S.snappers * 10;
     S.pencils += crate;
     if (S.day === 2) say('morning. a crate of pencils sits on the doorstep. no note. no truck tracks.');
     else if (S.day === 3) say('another crate. stamped on the side, faintly: BP.');
@@ -314,15 +334,25 @@ footer button { font: inherit; font-size: 14px; background: none; border: none; 
   endCard.textContent = 'End of act 1. Acts 2 and 3 are on the way.';
   $('g-hire').appendChild(endCard);
 
+  // The gray bar slides out with a CSS transition, so it stays smooth between ticks.
+  function startCd(key) {
+    cooldownUntil[key] = Date.now() + CD[key];
+    const bar = $('b-' + key).querySelector('.cd');
+    bar.style.transition = 'none';
+    bar.style.width = '100%';
+    void bar.offsetWidth;
+    bar.style.transition = 'width ' + CD[key] + 'ms linear';
+    bar.style.width = '0';
+    setTimeout(render, CD[key] + 20);
+  }
+
   function setCd(btn, key) {
-    const left = cooldownUntil[key] - Date.now();
-    btn.querySelector('.cd').style.width = left > 0 ? (left / CD[key] * 100) + '%' : '0';
-    return left > 0;
+    return cooldownUntil[key] - Date.now() > 0;
   }
 
   function render() {
     $('day').textContent = 'day ' + S.day;
-    if (S.built.sign) $('place').textContent = 'The Snapping Shoppe';
+    if (S.built.sign) $('place').textContent = 'The Snap Shoppe';
     $('v-pencils').textContent = S.pencils;
     $('v-snapped').textContent = S.snapped;
     $('v-coins').textContent = S.coins;
